@@ -6,7 +6,8 @@
 const STORAGE_KEYS = {
     USER: 'velocity_rides_user',
     PENDING: 'velocity_rides_pending',
-    NOTIFICATIONS: 'velocity_rides_notifications'
+    NOTIFICATIONS: 'velocity_rides_notifications',
+    WISHLIST: 'velocity_rides_wishlist'
 };
 
 // ============================================
@@ -33,12 +34,13 @@ function getPendingPurchases() {
     return data ? JSON.parse(data) : [];
 }
 
-function addPendingPurchase(templateId, username, contact) {
+function addPendingPurchase(templateId, username, contact, selectedDate) {
     const pending = getPendingPurchases();
     pending.push({
         templateId,
         username,
         contact,
+        selectedDate,
         timestamp: Date.now()
     });
     localStorage.setItem(STORAGE_KEYS.PENDING, JSON.stringify(pending));
@@ -64,8 +66,6 @@ function removePendingPurchase(templateId) {
 function removePendingForOtherUsers(templateId, buyerUsername) {
     const pending = getPendingPurchases();
     const filtered = pending.filter(p => {
-        // Keep only pending purchases that are NOT for this template
-        // OR are for this template but belong to the buyer
         return p.templateId !== templateId || p.username === buyerUsername;
     });
     localStorage.setItem(STORAGE_KEYS.PENDING, JSON.stringify(filtered));
@@ -81,34 +81,96 @@ function removePendingForUser(templateId, username) {
 }
 
 // ============================================
-// Notifications Management
+// Wishlist Management
 // ============================================
 
-function getNotifications() {
-    const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-    const notifications = data ? JSON.parse(data) : [];
+function getWishlist() {
+    const data = localStorage.getItem(STORAGE_KEYS.WISHLIST);
+    return data ? JSON.parse(data) : [];
+}
+
+function addToWishlist(templateId, username) {
+    const wishlist = getWishlist();
     
-    // Filter out notifications older than 24h
+    // Check if already in wishlist
+    const exists = wishlist.some(w => w.templateId === templateId && w.username === username);
+    if (exists) return false;
+    
+    wishlist.push({
+        templateId,
+        username,
+        timestamp: Date.now()
+    });
+    localStorage.setItem(STORAGE_KEYS.WISHLIST, JSON.stringify(wishlist));
+    return true;
+}
+
+function removeFromWishlist(templateId, username) {
+    const wishlist = getWishlist();
+    const filtered = wishlist.filter(w => 
+        !(w.templateId === templateId && w.username === username)
+    );
+    localStorage.setItem(STORAGE_KEYS.WISHLIST, JSON.stringify(filtered));
+}
+
+function isInWishlist(templateId, username) {
+    const wishlist = getWishlist();
+    return wishlist.some(w => w.templateId === templateId && w.username === username);
+}
+
+function getUserWishlist(username) {
+    const wishlist = getWishlist();
+    return wishlist.filter(w => w.username === username);
+}
+
+// Remove from wishlist when template is purchased or owned
+function removeFromWishlistIfOwned(templateId, username) {
+    removeFromWishlist(templateId, username);
+}
+
+// ============================================
+// Notifications Management (User-Specific)
+// ============================================
+
+function getNotifications(username) {
+    if (!username) return [];
+    
+    const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    const allNotifications = data ? JSON.parse(data) : [];
+    
+    // Filter by username and remove old notifications (older than 24h)
     const now = Date.now();
-    const filtered = notifications.filter(n => {
+    const userNotifications = allNotifications.filter(n => {
+        if (n.username !== username) return false;
+        
         const age = now - n.timestamp;
         const hours = age / (1000 * 60 * 60);
         return hours < 24;
     });
     
-    // Save filtered notifications if any were removed
-    if (filtered.length !== notifications.length) {
-        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(filtered));
+    // Clean up old notifications from storage
+    const validNotifications = allNotifications.filter(n => {
+        const age = now - n.timestamp;
+        const hours = age / (1000 * 60 * 60);
+        return hours < 24;
+    });
+    
+    if (validNotifications.length !== allNotifications.length) {
+        localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(validNotifications));
     }
     
-    return filtered;
+    return userNotifications;
 }
 
-function addNotification(type, title, message, templateId = null) {
-    const notifications = getNotifications();
+function addNotification(username, type, title, message, templateId = null) {
+    if (!username) return;
+    
+    const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    const notifications = data ? JSON.parse(data) : [];
     
     notifications.unshift({
         id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        username,
         type, // 'success', 'warning', 'info', 'error'
         title,
         message,
@@ -119,36 +181,46 @@ function addNotification(type, title, message, templateId = null) {
     
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
     
-    // Update notification badge
-    updateNotificationBadge();
+    // Update notification badge if this is for the current user
+    const currentUser = getUser();
+    if (currentUser && currentUser.username === username) {
+        updateNotificationBadge(username);
+    }
 }
 
-function markNotificationAsRead(notificationId) {
-    const notifications = getNotifications();
-    const notification = notifications.find(n => n.id === notificationId);
+function markNotificationAsRead(username, notificationId) {
+    const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    const notifications = data ? JSON.parse(data) : [];
+    
+    const notification = notifications.find(n => n.id === notificationId && n.username === username);
     
     if (notification) {
         notification.read = true;
         localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications));
-        updateNotificationBadge();
+        updateNotificationBadge(username);
     }
 }
 
-function clearAllNotifications() {
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
-    updateNotificationBadge();
+function clearAllNotifications(username) {
+    const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    const notifications = data ? JSON.parse(data) : [];
+    
+    // Remove only this user's notifications
+    const filtered = notifications.filter(n => n.username !== username);
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(filtered));
+    updateNotificationBadge(username);
 }
 
-function getUnreadNotificationCount() {
-    const notifications = getNotifications();
+function getUnreadNotificationCount(username) {
+    const notifications = getNotifications(username);
     return notifications.filter(n => !n.read).length;
 }
 
-function updateNotificationBadge() {
+function updateNotificationBadge(username) {
     const badge = document.getElementById('notification-badge');
     if (!badge) return;
     
-    const count = getUnreadNotificationCount();
+    const count = getUnreadNotificationCount(username);
     
     if (count > 0) {
         badge.textContent = count > 99 ? '99+' : count;
@@ -186,7 +258,7 @@ function showDashboard(username) {
     document.getElementById('logged-user').textContent = username;
     
     // Update notification badge
-    updateNotificationBadge();
+    updateNotificationBadge(username);
     
     // Initialize dashboard wenn app.js geladen ist
     if (typeof initDashboard === 'function') {
