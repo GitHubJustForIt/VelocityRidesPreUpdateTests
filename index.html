@@ -155,6 +155,10 @@
                         <i class="fas fa-filter"></i>
                         All Templates
                     </button>
+                    <button class="filter-btn" data-filter="wishlist">
+                        <i class="fas fa-heart"></i>
+                        Wishlist
+                    </button>
                     <button class="filter-btn" data-filter="pending">
                         <i class="fas fa-clock"></i>
                         Pending
@@ -184,8 +188,24 @@
         <!-- Footer -->
         <footer class="footer">
             <div class="container footer-content">
-                <p>© 2026 Velocity Rides. All rights reserved.</p>
-                <p class="footer-copyright">All templates and digital products are protected by copyright law.</p>
+                <div class="footer-legal">
+                    <h3 class="footer-legal-title">Legal Information & Terms</h3>
+                    <div class="footer-legal-text">
+                        <p><strong>Copyright Protection:</strong> All templates and digital products available on this platform are protected by copyright law. Unauthorized reproduction, distribution, or modification is strictly prohibited.</p>
+                        
+                        <p><strong>No Liability for Errors:</strong> While we strive to provide high-quality templates, Velocity Rides assumes no liability for any errors, defects, or issues that may arise from the use of our products. Users accept all templates "as is".</p>
+                        
+                        <p><strong>Contact Information Responsibility:</strong> It is the buyer's responsibility to provide accurate and functional contact information. Velocity Rides is not liable for failed communications due to incorrect, incomplete, or non-functional contact details provided by the purchaser.</p>
+                        
+                        <p><strong>Purchase Expiration:</strong> If a buyer fails to respond within 2 weeks (14 days) of initial contact from our team, the pending purchase will automatically expire and be cancelled. No refunds will be issued for expired purchases.</p>
+                        
+                        <p><strong>Availability:</strong> Pickup dates are limited to specific days as shown in the calendar. Once a template is sold, it is no longer available for purchase by other users.</p>
+                    </div>
+                </div>
+                <div class="footer-bottom">
+                    <p>© 2026 Velocity Rides. All rights reserved.</p>
+                    <p class="footer-copyright">By using this platform, you agree to our terms and conditions.</p>
+                </div>
             </div>
         </footer>
     </div>
@@ -275,6 +295,74 @@
                     <button id="report-btn" class="btn btn-report" type="button">
                         <i class="fas fa-flag"></i>
                         Report Issue with Template
+                    </button>
+                    
+                    <!-- Wishlist Button -->
+                    <button id="wishlist-btn" class="btn btn-wishlist" type="button" style="display: none;">
+                        <i class="fas fa-heart"></i>
+                        <span id="wishlist-btn-text">Add to Wishlist</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Modal -->
+    <div id="calendar-modal-overlay" class="modal-overlay">
+        <div class="modal modal-calendar">
+            <button class="modal-close" id="calendar-modal-close">
+                <i class="fas fa-times"></i>
+            </button>
+            
+            <div class="modal-content-single">
+                <div class="modal-header-icon">
+                    <div class="calendar-icon-large">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                </div>
+                
+                <h2 class="modal-title-center">Select Pickup Date</h2>
+                <p class="modal-subtitle-center">Choose a date for your template pickup</p>
+                
+                <div class="calendar-container">
+                    <div class="calendar-header">
+                        <button id="calendar-prev-month" class="calendar-nav-btn">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <h3 id="calendar-month-year" class="calendar-month-year"></h3>
+                        <button id="calendar-next-month" class="calendar-nav-btn">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="calendar-weekdays">
+                        <div class="calendar-weekday">Sun</div>
+                        <div class="calendar-weekday">Mon</div>
+                        <div class="calendar-weekday">Tue</div>
+                        <div class="calendar-weekday">Wed</div>
+                        <div class="calendar-weekday">Thu</div>
+                        <div class="calendar-weekday">Fri</div>
+                        <div class="calendar-weekday">Sat</div>
+                    </div>
+                    
+                    <div id="calendar-days" class="calendar-days">
+                        <!-- Calendar days will be inserted here -->
+                    </div>
+                </div>
+                
+                <div id="selected-date-display" class="selected-date-display" style="display: none;">
+                    <i class="fas fa-check-circle"></i>
+                    <span id="selected-date-text">No date selected</span>
+                </div>
+                
+                <div class="calendar-form-actions">
+                    <button type="button" id="calendar-cancel" class="btn btn-outline">
+                        <i class="fas fa-times"></i>
+                        Cancel
+                    </button>
+                    <button type="button" id="calendar-continue" class="btn btn-primary" disabled>
+                        <i class="fas fa-arrow-right"></i>
+                        Continue
                     </button>
                 </div>
             </div>
