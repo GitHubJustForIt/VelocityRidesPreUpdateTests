@@ -15,10 +15,9 @@ const templates = [
         description: 'A family-friendly ride with a unique layout.',
         price: 80000,
         gamepass: 'Non-Collision (optional), Ride Operation (optional)',
-        // Link zu deinem hochgeladenen Bild
         image: 'https://media.discordapp.net/attachments/1472624902153703567/1472661652922044710/fed14bd3-0711-4e73-9bd1-90ce3513b5e8.jpg?ex=6993628a&is=6992110a&hm=3e3cb4bfcb0732fe66b77eae99bfd6f4e90cefda2c5599a877be172ec3034e0e&=&format=webp&width=1446&height=800', 
-        purchased: true,      // true = verkauft, false = verfügbar
-        buyer: 'BananaToGoApfel1',           // Username des Käufers (wenn verkauft)
+        purchased: false,
+        buyer: null,
         tags: ['Family', 'Attraction', 'Boomerang']
     }
 ];
@@ -54,6 +53,14 @@ function markTemplateAsPurchased(templateId, buyerUsername) {
         
         // Remove pending status for the buyer (they own it now)
         removePendingForUser(templateId, buyerUsername);
+        
+        // Remove from wishlist for all users (including buyer)
+        removeFromWishlistIfOwned(templateId, buyerUsername);
+        
+        // Also remove from all users' wishlists since it's sold
+        const wishlist = getWishlist();
+        const filtered = wishlist.filter(w => w.templateId !== templateId);
+        localStorage.setItem('velocity_rides_wishlist', JSON.stringify(filtered));
         
         return true;
     }
