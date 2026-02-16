@@ -27,8 +27,8 @@ const templates = [
         price: 100000,
         gamepass: 'You need a park lol :)',
         image: 'https://media.discordapp.net/attachments/1472624902153703567/1472911206477074502/Screenshot_97.png?ex=69944af4&is=6992f974&hm=7ce1b1319070af237f236d946ee67d214e9053319535d9344887ea5cd4ab9637&=&format=webp&quality=lossless&width=698&height=930', 
-        purchased: false,
-        buyer: null,
+        purchased: true,
+        buyer: 'BananaToGoApfel1',
         tags: ['Tree', 'Leaf', 'Okay']
     }
 ];
