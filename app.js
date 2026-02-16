@@ -6,6 +6,10 @@ let currentUser = null;
 let currentFilter = 'all';
 let selectedTemplate = null;
 let searchQuery = '';
+let selectedDate = null;
+let pendingPurchaseData = null;
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth();
 
 // ============================================
 // Initialize Dashboard
@@ -19,6 +23,7 @@ function initDashboard(username) {
     setupSearch();
     setupNotificationPanel();
     setupReportModal();
+    setupCalendarModal();
 }
 
 // ============================================
@@ -33,7 +38,6 @@ function setupSearch() {
         searchInput.addEventListener('input', (e) => {
             searchQuery = e.target.value.toLowerCase().trim();
             
-            // Show/hide clear button
             if (searchQuery) {
                 searchClear.style.display = 'flex';
             } else {
@@ -94,12 +98,12 @@ function setupNotificationPanel() {
     document.addEventListener('click', (e) => {
         if (notificationPanel && 
             !notificationPanel.contains(e.target) && 
+            e.target !== notificationBtn &&
             !notificationBtn.contains(e.target)) {
             closeNotificationPanel();
         }
     });
     
-    // Initial render
     renderNotifications();
 }
 
@@ -124,7 +128,7 @@ function closeNotificationPanel() {
 }
 
 function renderNotifications() {
-    const notifications = getNotifications();
+    const notifications = getNotifications(currentUser);
     const content = document.getElementById('notification-panel-content');
     const empty = document.getElementById('notification-empty');
     
@@ -161,7 +165,7 @@ function renderNotifications() {
     content.querySelectorAll('.notification-item').forEach(item => {
         item.addEventListener('click', () => {
             const id = item.dataset.id;
-            markNotificationAsRead(id);
+            markNotificationAsRead(currentUser, id);
             item.classList.remove('unread');
         });
     });
@@ -198,7 +202,7 @@ function renderTemplates() {
     const emptyState = document.getElementById('empty-state');
     const allTemplates = getAllTemplates();
     
-    // Filter templates based on current filter and search
+    // Filter templates
     const filteredTemplates = filterTemplates(allTemplates);
     
     // Clear grid
@@ -221,7 +225,6 @@ function renderTemplates() {
     });
 }
 
-// Filter templates based on current filter, search, and user
 function filterTemplates(templates) {
     return templates.filter(template => {
         // Apply search filter
@@ -231,9 +234,12 @@ function filterTemplates(templates) {
         
         const isPendingByUser = isPending(template.id, currentUser);
         const isOwnedByUser = template.purchased && template.buyer === currentUser;
+        const inWishlist = isInWishlist(template.id, currentUser);
         
         // Apply filter
         switch (currentFilter) {
+            case 'wishlist':
+                return inWishlist && !isOwnedByUser;
             case 'pending':
                 return isPendingByUser;
             case 'purchased':
@@ -245,7 +251,6 @@ function filterTemplates(templates) {
     });
 }
 
-// Create template card element
 function createTemplateCard(template, index) {
     const card = document.createElement('div');
     card.className = 'template-card';
@@ -255,7 +260,6 @@ function createTemplateCard(template, index) {
     const isOwnedByUser = template.purchased && template.buyer === currentUser;
     const isSoldToOther = template.purchased && !isOwnedByUser;
     
-    // Add sold class if sold to someone else
     if (isSoldToOther) {
         card.classList.add('sold');
     }
@@ -264,10 +268,10 @@ function createTemplateCard(template, index) {
     let badgeHTML = '';
     if (isSoldToOther) {
         badgeHTML = '<span class="badge badge-sold">SOLD</span>';
+    } else if (isOwnedByUser) {
+        badgeHTML = '<span class="badge badge-owned">PURCHASED</span>';
     } else if (isPendingByUser) {
         badgeHTML = '<span class="badge badge-pending">PENDING</span>';
-    } else if (isOwnedByUser) {
-        badgeHTML = '<span class="badge badge-owned">OWNED</span>';
     }
     
     // Sold overlay
@@ -309,7 +313,7 @@ function createTemplateCard(template, index) {
         </div>
     `;
     
-    // Click handler - only open modal if not sold to someone else
+    // Click handler
     if (!isSoldToOther) {
         card.addEventListener('click', () => openModal(template));
     }
@@ -366,6 +370,12 @@ function setupModal() {
             openReportModal();
         });
     }
+    
+    // Wishlist button
+    const wishlistBtn = document.getElementById('wishlist-btn');
+    if (wishlistBtn) {
+        wishlistBtn.addEventListener('click', handleWishlistToggle);
+    }
 }
 
 function openModal(template) {
@@ -375,6 +385,7 @@ function openModal(template) {
     const isPendingByUser = isPending(template.id, currentUser);
     const isOwnedByUser = template.purchased && template.buyer === currentUser;
     const canPurchase = !template.purchased && !isPendingByUser;
+    const inWishlist = isInWishlist(template.id, currentUser);
     
     // Populate modal
     document.getElementById('modal-image').src = template.image;
@@ -390,13 +401,13 @@ function openModal(template) {
         badge.className = 'badge badge-sold';
         badge.textContent = 'SOLD';
         badge.style.display = 'block';
+    } else if (isOwnedByUser) {
+        badge.className = 'badge badge-owned';
+        badge.textContent = 'PURCHASED';
+        badge.style.display = 'block';
     } else if (isPendingByUser) {
         badge.className = 'badge badge-pending';
         badge.textContent = 'PENDING';
-        badge.style.display = 'block';
-    } else if (isOwnedByUser) {
-        badge.className = 'badge badge-owned';
-        badge.textContent = 'OWNED';
         badge.style.display = 'block';
     } else {
         badge.style.display = 'none';
@@ -422,6 +433,24 @@ function openModal(template) {
         statusSold.style.display = 'none';
     }
     
+    // Wishlist button
+    const wishlistBtn = document.getElementById('wishlist-btn');
+    const wishlistBtnText = document.getElementById('wishlist-btn-text');
+    
+    if (template.purchased) {
+        wishlistBtn.style.display = 'none';
+    } else {
+        wishlistBtn.style.display = 'block';
+        
+        if (inWishlist) {
+            wishlistBtn.classList.add('in-wishlist');
+            wishlistBtnText.textContent = 'Remove from Wishlist';
+        } else {
+            wishlistBtn.classList.remove('in-wishlist');
+            wishlistBtnText.textContent = 'Add to Wishlist';
+        }
+    }
+    
     // Show modal
     overlay.classList.add('show');
     document.body.style.overflow = 'hidden';
@@ -435,6 +464,278 @@ function closeModal() {
     
     // Reset form
     document.getElementById('contact-input').value = '';
+}
+
+// ============================================
+// Wishlist Functions
+// ============================================
+
+function handleWishlistToggle() {
+    if (!selectedTemplate) return;
+    
+    const inWishlist = isInWishlist(selectedTemplate.id, currentUser);
+    
+    if (inWishlist) {
+        removeFromWishlist(selectedTemplate.id, currentUser);
+        showToast('Removed from wishlist', 'info');
+    } else {
+        const added = addToWishlist(selectedTemplate.id, currentUser);
+        if (added) {
+            showToast('Added to wishlist', 'success');
+        }
+    }
+    
+    // Update button
+    const wishlistBtn = document.getElementById('wishlist-btn');
+    const wishlistBtnText = document.getElementById('wishlist-btn-text');
+    
+    if (!inWishlist) {
+        wishlistBtn.classList.add('in-wishlist');
+        wishlistBtnText.textContent = 'Remove from Wishlist';
+    } else {
+        wishlistBtn.classList.remove('in-wishlist');
+        wishlistBtnText.textContent = 'Add to Wishlist';
+    }
+    
+    // Re-render if on wishlist filter
+    if (currentFilter === 'wishlist') {
+        renderTemplates();
+    }
+}
+
+// ============================================
+// Calendar Modal
+// ============================================
+
+function setupCalendarModal() {
+    const overlay = document.getElementById('calendar-modal-overlay');
+    const closeBtn = document.getElementById('calendar-modal-close');
+    const cancelBtn = document.getElementById('calendar-cancel');
+    const continueBtn = document.getElementById('calendar-continue');
+    const prevMonth = document.getElementById('calendar-prev-month');
+    const nextMonth = document.getElementById('calendar-next-month');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeCalendarModal);
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', closeCalendarModal);
+    }
+    
+    if (continueBtn) {
+        continueBtn.addEventListener('click', handleCalendarContinue);
+    }
+    
+    if (prevMonth) {
+        prevMonth.addEventListener('click', () => {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+        });
+    }
+    
+    if (nextMonth) {
+        nextMonth.addEventListener('click', () => {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar();
+        });
+    }
+    
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                closeCalendarModal();
+            }
+        });
+    }
+}
+
+function openCalendarModal() {
+    const overlay = document.getElementById('calendar-modal-overlay');
+    const now = new Date();
+    currentYear = now.getFullYear();
+    currentMonth = now.getMonth();
+    selectedDate = null;
+    
+    renderCalendar();
+    updateSelectedDateDisplay();
+    
+    overlay.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeCalendarModal() {
+    const overlay = document.getElementById('calendar-modal-overlay');
+    overlay.classList.remove('show');
+    document.body.style.overflow = '';
+    selectedDate = null;
+    pendingPurchaseData = null;
+}
+
+function renderCalendar() {
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    const monthYear = document.getElementById('calendar-month-year');
+    monthYear.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+    
+    const daysContainer = document.getElementById('calendar-days');
+    daysContainer.innerHTML = '';
+    
+    // Get first day of month
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    // Add empty cells for days before first day
+    for (let i = 0; i < firstDay; i++) {
+        const emptyDay = document.createElement('div');
+        emptyDay.className = 'calendar-day empty';
+        daysContainer.appendChild(emptyDay);
+    }
+    
+    // Add days
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(currentYear, currentMonth, day);
+        const dayElement = document.createElement('button');
+        dayElement.className = 'calendar-day';
+        dayElement.textContent = day;
+        dayElement.type = 'button';
+        
+        // Check if today
+        if (date.getTime() === today.getTime()) {
+            dayElement.classList.add('today');
+        }
+        
+        // Check if selected
+        if (selectedDate && 
+            date.getDate() === selectedDate.getDate() &&
+            date.getMonth() === selectedDate.getMonth() &&
+            date.getFullYear() === selectedDate.getFullYear()) {
+            dayElement.classList.add('selected');
+        }
+        
+        // Check if selectable
+        if (isDateSelectable(date)) {
+            dayElement.addEventListener('click', () => selectDate(date));
+        } else {
+            dayElement.classList.add('disabled');
+        }
+        
+        daysContainer.appendChild(dayElement);
+    }
+}
+
+function isDateSelectable(date) {
+    // Can't select past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (date < today) return false;
+    
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 6 = Saturday, 5 = Friday
+    
+    // Get week number of year
+    const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+    const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
+    const weekNumber = Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+    
+    const isEvenWeek = weekNumber % 2 === 0;
+    
+    // Jede zweite Woche Freitags (even weeks)
+    if (dayOfWeek === 5 && isEvenWeek) return true;
+    
+    // Immer Samstags
+    if (dayOfWeek === 6) return true;
+    
+    // Jede zweite Woche Sonntags (even weeks)
+    if (dayOfWeek === 0 && isEvenWeek) return true;
+    
+    return false;
+}
+
+function selectDate(date) {
+    selectedDate = date;
+    renderCalendar();
+    updateSelectedDateDisplay();
+    
+    // Enable continue button
+    const continueBtn = document.getElementById('calendar-continue');
+    continueBtn.disabled = false;
+}
+
+function updateSelectedDateDisplay() {
+    const display = document.getElementById('selected-date-display');
+    const text = document.getElementById('selected-date-text');
+    const continueBtn = document.getElementById('calendar-continue');
+    
+    if (selectedDate) {
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        text.textContent = selectedDate.toLocaleDateString('en-US', options);
+        display.style.display = 'flex';
+        continueBtn.disabled = false;
+    } else {
+        display.style.display = 'none';
+        continueBtn.disabled = true;
+    }
+}
+
+async function handleCalendarContinue() {
+    if (!selectedDate || !pendingPurchaseData) return;
+    
+    const { template, contact } = pendingPurchaseData;
+    
+    // Disable button
+    const continueBtn = document.getElementById('calendar-continue');
+    const originalText = continueBtn.innerHTML;
+    continueBtn.disabled = true;
+    continueBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    
+    try {
+        // Send Discord webhook
+        const success = await sendDiscordWebhook(template, contact, selectedDate);
+        
+        if (success) {
+            // Add to pending with selected date
+            addPendingPurchase(template.id, currentUser, contact, selectedDate);
+            
+            // Add notification
+            addNotification(
+                currentUser,
+                'warning',
+                'Purchase Pending',
+                `Your purchase request for "${template.title}" is being processed. Pickup date: ${selectedDate.toLocaleDateString('en-US')}`,
+                template.id
+            );
+            
+            // Show success message
+            showToast('Purchase request submitted successfully!', 'success');
+            
+            // Close modals
+            closeCalendarModal();
+            closeModal();
+            
+            // Re-render
+            renderTemplates();
+            renderNotifications();
+        } else {
+            throw new Error('Failed to send notification');
+        }
+    } catch (error) {
+        console.error('Purchase error:', error);
+        showToast('Failed to submit purchase request. Please try again.', 'error');
+        continueBtn.disabled = false;
+        continueBtn.innerHTML = originalText;
+    }
 }
 
 // ============================================
@@ -511,6 +812,7 @@ async function handleReportSubmit(event) {
             
             // Add notification
             addNotification(
+                currentUser,
                 'info',
                 'Report Submitted',
                 `Your report for "${selectedTemplate.title}" has been sent to the team.`,
@@ -551,64 +853,43 @@ async function handlePurchaseSubmit(event) {
         return;
     }
     
-    // Disable form
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    // Store pending purchase data
+    pendingPurchaseData = {
+        template: selectedTemplate,
+        contact: contact
+    };
     
-    try {
-        // Send Discord notification
-        const success = await sendDiscordWebhook(selectedTemplate, contact);
-        
-        if (success) {
-            // Add to pending
-            addPendingPurchase(selectedTemplate.id, currentUser, contact);
-            
-            // Add notification
-            addNotification(
-                'warning',
-                'Purchase Pending',
-                `Your purchase request for "${selectedTemplate.title}" is being processed.`,
-                selectedTemplate.id
-            );
-            
-            // Show success message
-            showToast('Purchase request submitted successfully!', 'success');
-            
-            // Close modal after delay
-            setTimeout(() => {
-                closeModal();
-                renderTemplates(); // Re-render to update badges
-                renderNotifications(); // Update notifications
-            }, 1500);
-        } else {
-            throw new Error('Failed to send notification');
-        }
-    } catch (error) {
-        console.error('Purchase error:', error);
-        showToast('Failed to submit purchase request. Please try again.', 'error');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
-    }
+    // Close main modal and open calendar
+    closeModal();
+    
+    // Scroll to calendar section smoothly
+    setTimeout(() => {
+        openCalendarModal();
+    }, 300);
 }
 
 // ============================================
 // Discord Webhook
 // ============================================
 
-async function sendDiscordWebhook(template, contact) {
+async function sendDiscordWebhook(template, contact, pickupDate) {
     const webhookUrl = getWebhookUrl();
     
-    // Validierung der URL
     if (!webhookUrl || webhookUrl.includes("HIER_EINFÜGEN")) {
         console.error("❌ Webhook URL fehlt oder ist ungültig!");
         return false;
     }
 
+    const dateStr = pickupDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+    });
+
     const embed = {
         title: '🎮 New Purchase Request - Velocity Rides',
-        color: 3447003, // Professional Blue
+        color: 3447003,
         fields: [
             {
                 name: '👤 Username',
@@ -623,6 +904,11 @@ async function sendDiscordWebhook(template, contact) {
             {
                 name: '📞 Contact Information',
                 value: contact,
+                inline: false
+            },
+            {
+                name: '📅 Pickup Date',
+                value: dateStr,
                 inline: false
             },
             {
@@ -647,7 +933,6 @@ async function sendDiscordWebhook(template, contact) {
         }
     };
 
-    // Thumbnail nur hinzufügen, wenn ein Bild vorhanden ist
     if (template.image) {
         embed.thumbnail = { url: template.image };
     }
@@ -681,18 +966,15 @@ async function sendDiscordWebhook(template, contact) {
 // ============================================
 // Simulate Purchase Completion (for testing)
 // ============================================
-// This function simulates when an admin marks a template as purchased
-// In a real application, this would be triggered by your backend/admin panel
 
 function simulatePurchaseCompletion(templateId, buyerUsername) {
-    // Mark template as purchased
     const success = markTemplateAsPurchased(templateId, buyerUsername);
     
     if (success) {
-        // Add notification to buyer
         const template = getTemplateById(templateId);
         if (template) {
             addNotification(
+                buyerUsername,
                 'success',
                 'Purchase Completed!',
                 `You have successfully purchased "${template.title}". The team will contact you soon.`,
@@ -708,7 +990,6 @@ function simulatePurchaseCompletion(templateId, buyerUsername) {
     }
 }
 
-// Make this function available globally for testing
 window.simulatePurchaseCompletion = simulatePurchaseCompletion;
 
 // ============================================
@@ -716,7 +997,6 @@ window.simulatePurchaseCompletion = simulatePurchaseCompletion;
 // ============================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Check if user is logged in
     const user = getUser();
     if (user && user.username) {
         initDashboard(user.username);
